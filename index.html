@@ -183,7 +183,7 @@
     </svg>
     <div class="brand grow">
       <h1>Rosalía</h1>
-      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v7</b></p>
+      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v8</b></p>
     </div>
     <div class="today-pill" id="todayPill">—</div>
     <button id="cfgBtn" onclick="syncSheet()" aria-label="Sincronización" style="margin-left:8px;width:36px;height:36px;flex:none;border-radius:50%;background:#fff;border:1px solid var(--line);display:grid;place-items:center">
@@ -334,6 +334,8 @@ function subscribe(){
     if(got){
       if(!primero && !snap.metadata.hasPendingWrites) avisarCambioFamilia();
       render();
+      if(window.__respaldoInicial){ clearTimeout(window.__respaldoInicial); window.__respaldoInicial=null; }
+      window.__pintado=true;
     }
     primero=false;
   }, err=>console.warn('snapshot',err));
@@ -747,25 +749,29 @@ async function init(){
     if(!any || !S.personas || !S.personas.length){ seed(); await saveAll(); }
     else{ await migrarDatos(); }
   }catch(e){ if(!S.personas || !S.personas.length) seed(); }
-  buildTabs(); render(); fechaPill();
+  buildTabs(); fechaPill();
   registrarSW();
-  // Firebase en segundo plano — la app YA se pintó arriba, así que NO abandonamos
-  // la conexión si el primer handshake tarda. En cuanto Firebase queda listo,
-  // pasamos a modo familiar compartido y volvemos a renderizar.
+  // Esperamos los datos de la nube ANTES de pintar, para no mostrar un instante
+  // la pantalla vacia (eso se veia como "aparece y vuelve la vieja"). Queda en
+  // "Cargando..." y pinta UNA sola vez, ya con los datos reales. Si la nube tarda
+  // mas de 7s (o no hay internet), pintamos lo que haya guardado localmente.
+  const pintarLocal=function(){ if(!window.__pintado){ window.__pintado=true; render(); } };
   if(cfg.config && window.firebase){
+    window.__respaldoInicial=setTimeout(pintarLocal, 7000);
     initFirebase(false).then(async ok=>{
       if(ok && fb.ready){
         _backend='firebase';
         try{ await ensureFamilyDoc(); await migrarDatos(); }catch(e){ console.warn(e); }
-        subscribe(); render();
-      }
-    }).catch(e=>console.warn('firebase bg', e));
+        subscribe();
+      } else { pintarLocal(); }
+    }).catch(e=>{ console.warn('firebase bg', e); pintarLocal(); });
+  } else {
+    pintarLocal();
   }
 }
 function registrarSW(){
   // Service Worker simple y estable: permite "instalar la app" y funciona sin
-  // internet. El HTML se pide siempre a la red primero, asi que al abrir ves la
-  // ultima version. SIN recargas automaticas (eso causaba el parpadeo en el movil).
+  // internet. HTML siempre desde la red primero. SIN recargas automaticas.
   if(!('serviceWorker' in navigator)) return;
   try{
     navigator.serviceWorker.register('./sw.js').then(function(reg){
