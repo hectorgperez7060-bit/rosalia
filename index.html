@@ -183,7 +183,7 @@
     </svg>
     <div class="brand grow">
       <h1>Rosalía</h1>
-      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v8</b></p>
+      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v9</b></p>
     </div>
     <div class="today-pill" id="todayPill">—</div>
     <button id="cfgBtn" onclick="syncSheet()" aria-label="Sincronización" style="margin-left:8px;width:36px;height:36px;flex:none;border-radius:50%;background:#fff;border:1px solid var(--line);display:grid;place-items:center">
@@ -276,7 +276,7 @@ function syncBanner(){
 /* ---------- sincronización familiar con Firebase (ya configurada) ---------- */
 const DEFAULT_CFG = {
   familyId:'ocampos',
-  gemini:'AQ.Ab8RN6LxvyCp2XyqWDFyRvt56Q065JMsqHxtOp8Q5VDBo0X7Jw',
+  gemini:'',
   config:{
     apiKey:"AIzaSyA6CDWnGB0_7Loi84hbsbhIoPrx0PjIPmM",
     authDomain:"rosalia-e48f5.firebaseapp.com",
@@ -333,7 +333,9 @@ function subscribe(){
     KEYS.forEach(k=>{ if(d[k]!=null){ S[k]=d[k]; got=true; } });
     if(got){
       if(!primero && !snap.metadata.hasPendingWrites) avisarCambioFamilia();
+      try{ if(d.geminiKey && !cfg.gemini){ cfg.gemini=d.geminiKey; saveCfg(); } }catch(e){}
       render();
+      try{ KEYS.forEach(function(k){ if(d[k]!=null) localStorage.setItem('rosalia.'+k, JSON.stringify(d[k])); }); }catch(e){}
       if(window.__respaldoInicial){ clearTimeout(window.__respaldoInicial); window.__respaldoInicial=null; }
       window.__pintado=true;
     }
@@ -751,13 +753,9 @@ async function init(){
   }catch(e){ if(!S.personas || !S.personas.length) seed(); }
   buildTabs(); fechaPill();
   registrarSW();
-  // Esperamos los datos de la nube ANTES de pintar, para no mostrar un instante
-  // la pantalla vacia (eso se veia como "aparece y vuelve la vieja"). Queda en
-  // "Cargando..." y pinta UNA sola vez, ya con los datos reales. Si la nube tarda
-  // mas de 7s (o no hay internet), pintamos lo que haya guardado localmente.
   const pintarLocal=function(){ if(!window.__pintado){ window.__pintado=true; render(); } };
   if(cfg.config && window.firebase){
-    window.__respaldoInicial=setTimeout(pintarLocal, 7000);
+    window.__respaldoInicial=setTimeout(pintarLocal, 8000);
     initFirebase(false).then(async ok=>{
       if(ok && fb.ready){
         _backend='firebase';
@@ -770,8 +768,6 @@ async function init(){
   }
 }
 function registrarSW(){
-  // Service Worker simple y estable: permite "instalar la app" y funciona sin
-  // internet. HTML siempre desde la red primero. SIN recargas automaticas.
   if(!('serviceWorker' in navigator)) return;
   try{
     navigator.serviceWorker.register('./sw.js').then(function(reg){

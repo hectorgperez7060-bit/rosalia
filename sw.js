@@ -1,5 +1,5 @@
-// Rosalia - Service Worker v8 (simple y estable, sin recargas automaticas)
-const VERSION = 'v8';
+// Rosalia - Service Worker v9 (simple y estable, sin recargas automaticas)
+const VERSION = 'v9';
 const CACHE = 'rosalia-' + VERSION;
 const CORE = ['./', './index.html', './manifest.json'];
 self.addEventListener('install', function(e){
@@ -20,9 +20,8 @@ self.addEventListener('fetch', function(e){
   if(url.origin !== self.location.origin) return;
   const esHTML = req.mode === 'navigate' || (req.headers.get('accept')||'').indexOf('text/html') !== -1;
   if(esHTML){
-    e.respondWith(fetch(req).then(function(res){
-      const c=res.clone(); caches.open(CACHE).then(function(x){ x.put(req,c); }).catch(function(){}); return res;
-    }).catch(function(){ return caches.match(req).then(function(r){ return r || caches.match('./index.html'); }); }));
+    e.respondWith(fetch(req).then(function(res){ const c=res.clone(); caches.open(CACHE).then(function(x){ x.put(req,c); }).catch(function(){}); return res; })
+      .catch(function(){ return caches.match(req).then(function(r){ return r || caches.match('./index.html'); }); }));
   } else {
     e.respondWith(caches.match(req).then(function(cached){
       const red=fetch(req).then(function(res){ const c=res.clone(); caches.open(CACHE).then(function(x){ x.put(req,c); }).catch(function(){}); return res; }).catch(function(){ return cached; });
