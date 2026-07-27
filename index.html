@@ -183,7 +183,7 @@
     </svg>
     <div class="brand grow">
       <h1>Rosalía</h1>
-      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v6</b></p>
+      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v7</b></p>
     </div>
     <div class="today-pill" id="todayPill">—</div>
     <button id="cfgBtn" onclick="syncSheet()" aria-label="Sincronización" style="margin-left:8px;width:36px;height:36px;flex:none;border-radius:50%;background:#fff;border:1px solid var(--line);display:grid;place-items:center">
@@ -763,9 +763,9 @@ async function init(){
   }
 }
 function registrarSW(){
-  // Service Worker con AUTO-ACTUALIZACION. La app siempre pide la version nueva a
-  // la red (network-first); si hay una nueva, se instala, toma control y recarga
-  // UNA sola vez. Nunca mas se queda pegada en una version vieja.
+  // Service Worker simple y estable: permite "instalar la app" y funciona sin
+  // internet. El HTML se pide siempre a la red primero, asi que al abrir ves la
+  // ultima version. SIN recargas automaticas (eso causaba el parpadeo en el movil).
   if(!('serviceWorker' in navigator)) return;
   try{
     navigator.serviceWorker.register('./sw.js').then(function(reg){
@@ -774,10 +774,6 @@ function registrarSW(){
         if(document.visibilityState==='visible'){ try{ reg.update(); }catch(e){} }
       });
     }).catch(function(){});
-    var recargado=false;
-    navigator.serviceWorker.addEventListener('controllerchange', function(){
-      if(recargado) return; recargado=true; window.location.reload();
-    });
   }catch(e){}
 }
 
