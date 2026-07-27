@@ -183,7 +183,7 @@
     </svg>
     <div class="brand grow">
       <h1>Rosalía</h1>
-      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v9</b></p>
+      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v10</b></p>
     </div>
     <div class="today-pill" id="todayPill">—</div>
     <button id="cfgBtn" onclick="syncSheet()" aria-label="Sincronización" style="margin-left:8px;width:36px;height:36px;flex:none;border-radius:50%;background:#fff;border:1px solid var(--line);display:grid;place-items:center">
@@ -569,7 +569,7 @@ async function analizarDoc(file){
     if(file.type.indexOf('image/')===0){ _scan.img=await resizeImg(file); }
     else if(file.type==='application/pdf'){ pdfB64=await fileB64(file); }
     else { closeSheet(); alert('Subí una foto o un PDF.'); return; }
-    const txt = await askAI({text:promptExtraccion(), imageDataUrl:_scan.img, pdfB64});
+    const txt = await askAI({text:promptExtraccion(), imageDataUrl:_scan.img, pdfB64, json:true});
     const j=extraerJSON(txt);
     if(!j) throw new Error('sin json');
     window._scanJ=j; window._scanTipo=(j.tipo&&['turno','estudio','receta','orden','diagnostico'].includes(j.tipo))?j.tipo:'estudio';
@@ -1188,7 +1188,7 @@ async function askClaude({system, messages, text, imageDataUrl, pdfB64}){
   if(data.error) throw new Error(data.error.message||'claude');
   return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('\n').trim();
 }
-async function askGemini({system, messages, text, imageDataUrl, pdfB64}){
+async function askGemini({system, messages, text, imageDataUrl, pdfB64, json}){
   let contents;
   if(messages){ contents = messages.map(m=>({role:m.role==='assistant'?'model':'user', parts:[{text:m.text}]})); }
   else{
@@ -1197,7 +1197,9 @@ async function askGemini({system, messages, text, imageDataUrl, pdfB64}){
     if(pdfB64) parts.push({inline_data:{mime_type:'application/pdf', data:pdfB64}});
     contents=[{role:'user', parts}];
   }
-  const body={contents, generationConfig:{maxOutputTokens:1200}};
+  const gen={maxOutputTokens: json?2048:1200};
+  if(json){ gen.responseMimeType='application/json'; gen.thinkingConfig={thinkingBudget:0}; }
+  const body={contents, generationConfig:gen};
   if(system) body.system_instruction={parts:[{text:system}]};
   const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(cfg.gemini),
     {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
