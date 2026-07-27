@@ -1,5 +1,5 @@
 // Rosalia - Service Worker v9 (simple y estable, sin recargas automaticas)
-const VERSION = 'v10';
+const VERSION = 'v11';
 const CACHE = 'rosalia-' + VERSION;
 const CORE = ['./', './index.html', './manifest.json'];
 self.addEventListener('install', function(e){

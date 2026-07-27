@@ -163,6 +163,18 @@
   .hidden{display:none !important;}
   .plus{position:relative;}
   .alert-dot{position:absolute; top:-3px; right:2px; width:9px; height:9px; background:var(--rose); border-radius:50%; border:2px solid #fff;}
+  #cal{ --fc-button-bg-color:var(--green); --fc-button-border-color:var(--green);
+    --fc-button-hover-bg-color:var(--green-ink); --fc-button-hover-border-color:var(--green-ink);
+    --fc-button-active-bg-color:var(--rose); --fc-button-active-border-color:var(--rose);
+    --fc-today-bg-color:var(--rose-soft); --fc-border-color:var(--line);
+    --fc-list-event-hover-bg-color:var(--rose-soft); --fc-page-bg-color:transparent;
+    --fc-neutral-bg-color:#FBF5EF; font-size:14px; }
+  .fc .fc-toolbar.fc-header-toolbar{ margin-bottom:.6em; flex-wrap:wrap; gap:6px; }
+  .fc .fc-toolbar-title{ font-family:'Fraunces',serif; font-weight:500; font-size:18px; }
+  .fc .fc-button{ font-weight:700; text-transform:none; font-size:12.5px; padding:6px 10px; border-radius:9px; box-shadow:none; }
+  .fc-theme-standard td, .fc-theme-standard th, .fc-theme-standard .fc-scrollgrid{ border-color:var(--line); }
+  .fc .fc-list-event-title a{ font-weight:700; color:var(--ink); }
+  .fc .fc-daygrid-day.fc-day-today{ background:var(--rose-soft); }
   #printArea{display:none;}
   @media print{
     header,nav.tabs,.scrim,#app{display:none !important;}
@@ -183,7 +195,7 @@
     </svg>
     <div class="brand grow">
       <h1>Rosalía</h1>
-      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v10</b></p>
+      <p>La salud de la familia · <b class="mono" style="color:var(--rose)">v11</b></p>
     </div>
     <div class="today-pill" id="todayPill">—</div>
     <button id="cfgBtn" onclick="syncSheet()" aria-label="Sincronización" style="margin-left:8px;width:36px;height:36px;flex:none;border-radius:50%;background:#fff;border:1px solid var(--line);display:grid;place-items:center">
@@ -202,6 +214,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/es.global.min.js"></script>
 
 <script>
 /* ============================================================
@@ -834,103 +848,115 @@ function pendientes(){
 function renderHoy(){
   const hoy=new Date(); const hh=hoy.getHours();
   const saludo = hh<12?'Buen día':hh<20?'Buenas tardes':'Buenas noches';
-  const prox = proximosTurnos(30);
+  const prox = proximosTurnos(null);
   const ordP = S.ordenes.filter(o=>o.estado!=='realizada');
-  const medsHoy = medicacionDeHoy();
+  const medsHoy = (typeof medicacionDeHoy==='function')?medicacionDeHoy():[];
   const cudAlertas = S.personas.filter(p=>p.cud&&p.cud.tiene&&p.cud.vencimiento&&daysUntil(p.cud.vencimiento)!=null&&daysUntil(p.cud.vencimiento)<=180);
 
   let html = `<div class="view">
     <div class="section-h"><div><div class="eyebrow">${hoy.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})}</div>
     <h2 style="margin-top:2px">${saludo} 👋</h2></div></div>`;
   html += syncBanner();
-  html += `<div class="card" onclick="derechosSheet()" style="border-color:var(--green-soft);background:linear-gradient(180deg,#fff,#F5FBF8);cursor:pointer">
-    <div class="row"><span class="chip">Derechos y beneficios</span></div>
-    <div class="b" style="margin-top:8px;font-size:15.5px">¿Qué les cubre el CUD y la obra social?</div>
-    <div class="small muted">Cobertura 100%, prestadores cercanos, transporte y cómo reclamar si los mandan lejos.</div></div>`;
 
-  html += `<div class="btnrow" style="margin:2px 0 12px">
-    <button class="btn rose" onclick="cudSheet()">🌹 CUD</button>
-    <button class="btn" onclick="escanearUI()">📸 Escanear</button>
-  </div>`;
+  // Acción principal: escanear
+  html += `<button class="btn rose" style="margin:2px 0 16px" onclick="escanearUI()">📸 Escanear documento y archivar solo</button>`;
 
-  // Informe semanal
-  const infSem=informeDeEstaSemana();
-  html += `<div class="card" style="border-color:${infSem?'var(--green-soft)':'#EAD3A8'}">
-    <div class="row"><span class="chip ${infSem?'':'honey'}">Informe semanal · ${infSem?'completo':'pendiente'}</span></div>
-    <div class="b" style="margin-top:8px;font-size:15.5px">Progreso de la semana para la doctora</div>
-    <div class="small muted">${infSem?'Ya cargaron el de esta semana. Podés editarlo o compartirlo.':'Kinesiología, sueño, dolor, medicación… Se comparte con la doctora.'}</div>
-    <div class="btnrow" style="margin-top:12px">
-      <button class="btn sm" onclick="informeSheet()">${infSem?'Editar':'Completar'}</button>
-      <button class="btn soft sm" onclick="informeDoctor()">Compartir a la doctora</button>
-      <button class="btn wa sm" onclick="recordarInformeFamilia()">Avisar a la familia</button>
-    </div></div>`;
-
-  // Alertas CUD (vencimiento)
-  cudAlertas.forEach(p=>{
-    const d=daysUntil(p.cud.vencimiento);
-    html+=`<div class="banner" style="background:${d<0?'var(--danger-soft)':'var(--honey-soft)'};border-color:${d<0?'#e7b3ac':'#EAD3A8'}">
-      <b>CUD de ${esc(p.nombre.split(' ')[0])}</b> — ${d<0?`venció hace ${-d} días`:`vence en ${d} días`} (${fdate(p.cud.vencimiento)}).
-      La renovación tarda: conviene iniciar el trámite con anticipación.
-    </div>`;
-  });
-
-  // Próximo turno destacado
-  if(prox.length){
-    const t=prox[0]; const p=persona(t.personaId); const d=daysUntil(t.fecha);
-    const cuando = d===0?'Hoy':d===1?'Mañana':`En ${d} días`;
-    html+=`<div class="card" style="border-color:var(--rose-soft);background:linear-gradient(180deg,#fff, #FFFBF9)">
-      <div class="row"><span class="chip rose">Próximo turno · ${cuando}</span></div>
-      <h3 style="font-size:20px;margin:10px 0 2px">${esc(t.especialidad||t.profesional||'Turno')}</h3>
-      <div class="small muted b">${fdateLong(t.fecha)} · ${t.hora||''} hs</div>
-      <div class="row small" style="margin-top:8px">${avatar(p,26)}<span class="b">${esc(p.nombre.split(' ')[0])}</span>
-        ${t.lugar?`<span class="muted">· ${esc(t.lugar)}</span>`:''}</div>
-      <div class="btnrow" style="margin-top:14px">
-        <button class="btn wa sm" onclick="waTurno('${t.id}')">Avisar por WhatsApp</button>
-        <button class="btn soft sm" onclick="icsTurno('${t.id}')">Agendar aviso</button>
-        <button class="btn ghost sm" onclick="verTurno('${t.id}')">Ver</button>
-      </div></div>`;
+  // ===== CRONOGRAMA (lo más importante, arriba) =====
+  html += `<div class="section-h"><h2>Cronograma</h2><span class="link" onclick="go('turnos');nuevoTurno()">+ Turno</span></div>`;
+  if(S.turnos.length){
+    html += `<div class="card" style="padding:12px"><div id="cal"></div></div>`;
+    html += `<div class="row" style="flex-wrap:wrap;gap:10px;margin:0 2px 16px">`
+      + S.personas.map(p=>`<span class="tiny b" style="display:inline-flex;align-items:center;gap:5px"><span style="width:11px;height:11px;border-radius:50%;background:${p.color||'#999'}"></span>${esc(p.nombre.split(' ')[0])}</span>`).join('')
+      + `</div>`;
+  } else {
+    html += `<div class="card flat" style="text-align:center;padding:24px">
+      <div class="b">Todavía no hay turnos</div>
+      <div class="small muted" style="margin-top:4px">Escaneá una autorización o cargá el próximo control y va a aparecer acá en el calendario.</div>
+      <button class="btn soft sm" style="margin-top:12px;width:auto" onclick="go('turnos');nuevoTurno()">+ Cargar turno</button></div>`;
   }
 
-  // Medicación de hoy
+  // Próximo turno resaltado
+  if(prox.length){
+    const t=prox[0]; const p=persona(t.personaId); const d=daysUntil(t.fecha);
+    const cuando = d===0?'HOY':d===1?'MAÑANA':`En ${d} días`;
+    html+=`<div class="card" style="border-color:var(--rose-soft);background:linear-gradient(180deg,#fff,#FFFBF9);cursor:pointer" onclick="verTurno('${t.id}')">
+      <div class="row"><span class="chip rose">Próximo · ${cuando}</span><span class="tiny muted" style="margin-left:auto">${fdate(t.fecha)}${t.hora?` · ${t.hora} hs`:''}</span></div>
+      <h3 style="font-size:19px;margin:8px 0 2px">${esc(t.especialidad||t.profesional||'Turno')}</h3>
+      <div class="row small" style="margin-top:4px">${avatar(p,24)}<span class="b">${esc(p.nombre.split(' ')[0])}</span>${t.lugar?`<span class="muted">· ${esc(t.lugar)}</span>`:''}</div>
+    </div>`;
+  }
+
+  // ===== POR AGENDAR (órdenes / autorizaciones pendientes) =====
+  if(ordP.length){
+    html+=`<div class="section-h"><h2>Por agendar</h2><span class="link" onclick="go('salud');saludFilter.tipo='ordenes';render()">Ver todas</span></div>`;
+    ordP.slice(0,4).forEach(o=>{ const p=persona(o.personaId);
+      html+=`<div class="card flat" style="padding:13px 15px"><div class="row">
+        ${estadoChip(o.estado)}<div class="grow" style="cursor:pointer" onclick="verOrden('${o.id}')"><div class="b truncate">${esc(o.estudio||'Práctica autorizada')}</div>
+        <div class="tiny muted truncate">${esc(p.nombre.split(' ')[0])}${o.dondeIr?` · ${esc(o.dondeIr)}`:''}</div></div>
+        <button class="btn soft sm" onclick="go('turnos');nuevoTurno()">Agendar</button></div></div>`;
+    });
+  }
+
+  // ===== MEDICACIÓN DE HOY (compacto) =====
   if(medsHoy.length){
     html+=`<div class="section-h"><h2>Medicación de hoy</h2></div>`;
     medsHoy.forEach(m=>{ const p=persona(m.personaId);
-      html+=`<div class="card flat" style="padding:13px 15px"><div class="row">
-        ${avatar(p,30)}<div class="grow"><div class="b">${esc(m.medicamento)} ${m.dosis?`· ${esc(m.dosis)}`:''}</div>
-        <div class="tiny muted">${esc(p.nombre.split(' ')[0])} · ${esc(m.horariosTxt)}</div></div>
-        <button class="btn wa sm" onclick="waMed('${m.id}')">Recordar</button></div></div>`;
+      html+=`<div class="card flat" style="padding:12px 15px"><div class="row">
+        ${avatar(p,28)}<div class="grow"><div class="b truncate">${esc(m.medicamento)}${m.dosis?` · ${esc(m.dosis)}`:''}</div>
+        <div class="tiny muted">${esc(p.nombre.split(' ')[0])} · ${esc(m.horariosTxt||'')}</div></div></div></div>`;
     });
   }
 
-  // Órdenes pendientes
-  if(ordP.length){
-    html+=`<div class="section-h"><h2>Órdenes pendientes</h2><span class="link" onclick="go('salud');saludFilter.tipo='ordenes';render()">Ver todas</span></div>`;
-    ordP.slice(0,3).forEach(o=>{ const p=persona(o.personaId);
-      html+=`<div class="card flat" style="padding:13px 15px" onclick="verOrden('${o.id}')"><div class="row">
-        ${estadoChip(o.estado)}<div class="grow"><div class="b truncate">${esc(o.estudio||'Estudio')}</div>
-        <div class="tiny muted">${esc(p.nombre.split(' ')[0])}${o.dondeIr?` · ${esc(o.dondeIr)}`:''}</div></div>
-        <span class="muted">›</span></div></div>`;
-    });
-  }
+  // ===== CUD (alertas de vencimiento) =====
+  cudAlertas.forEach(p=>{ const d=daysUntil(p.cud.vencimiento);
+    html+=`<div class="banner" style="background:${d<0?'var(--danger-soft)':'var(--honey-soft)'};border-color:${d<0?'#e7b3ac':'#EAD3A8'}">
+      <b>CUD de ${esc(p.nombre.split(' ')[0])}</b> — ${d<0?`venció hace ${-d} días`:`vence en ${d} días`} (${fdate(p.cud.vencimiento)}). Conviene renovar con anticipación.</div>`;
+  });
 
-  if(!prox.length && !ordP.length && !medsHoy.length && !cudAlertas.length){
-    html+=`<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 6 9 17l-5-5"/></svg>
-      <div class="b">Todo en orden por ahora</div><div class="small">No hay turnos, órdenes ni avisos pendientes.</div></div>`;
-  }
-
-  html+=`<div class="section-h"><h2>Accesos rápidos</h2></div>
+  // ===== MÁS (accesos, demotado) =====
+  html += `<div class="section-h" style="margin-top:22px"><h2 style="font-size:17px">Más</h2></div>
     <div class="two" style="gap:10px">
-      <button class="btn soft" onclick="go('turnos');nuevoTurno()">+ Turno</button>
-      <button class="btn soft" onclick="go('salud');saludFilter.tipo='estudios';render();nuevoEstudio()">+ Estudio</button>
-      <button class="btn soft" onclick="go('salud');saludFilter.tipo='recetas';render();nuevaReceta()">+ Receta</button>
-      <button class="btn soft" onclick="go('salud');saludFilter.tipo='ordenes';render();nuevaOrden()">+ Orden</button>
-    </div>
-    <div class="btnrow" style="margin-top:10px">
-      <button class="btn ghost" onclick="exportar()">Descargar copia</button>
-      <button class="btn ghost" onclick="importarUI()">Restaurar copia</button>
-    </div>
+      <button class="btn soft" onclick="cudSheet()">🌹 CUD</button>
+      <button class="btn soft" onclick="derechosSheet()">Derechos</button>
+      <button class="btn soft" onclick="informeSheet()">Informe semanal</button>
+      <button class="btn soft" onclick="go('familia')">Familia y OSADEF</button>
     </div>`;
+
+  html+=`</div>`;
   app.innerHTML=html;
+  montarCronograma();
+}
+
+function montarCronograma(){
+  var el=document.getElementById('cal');
+  if(!el) return;
+  if(typeof FullCalendar==='undefined'){ el.innerHTML='<div class="muted small" style="padding:14px;text-align:center">Cargando calendario…</div>'; return; }
+  try{ if(window._cal){ window._cal.destroy(); window._cal=null; } }catch(e){}
+  var eventos=(S.turnos||[]).map(function(t){
+    var p=persona(t.personaId);
+    return { id:t.id,
+      title:(t.especialidad||t.profesional||'Turno'),
+      start: t.fecha + (t.hora?('T'+t.hora):''),
+      allDay: !t.hora,
+      backgroundColor: p.color||'#B24A60',
+      borderColor: p.color||'#B24A60',
+      textColor:'#fff' };
+  });
+  try{
+    var cal=new FullCalendar.Calendar(el,{
+      initialView:'listMonth',
+      locale:'es',
+      firstDay:1,
+      height:'auto',
+      headerToolbar:{ left:'prev,next today', center:'title', right:'listMonth,dayGridMonth' },
+      buttonText:{ today:'Hoy', month:'Mes', list:'Agenda' },
+      noEventsContent:'Sin turnos este mes',
+      displayEventTime:true,
+      events:eventos,
+      eventClick:function(info){ if(info.jsEvent) info.jsEvent.preventDefault(); if(typeof verTurno==='function') verTurno(info.event.id); }
+    });
+    cal.render(); window._cal=cal;
+  }catch(e){ console.warn('cal',e); el.innerHTML='<div class="muted small" style="padding:14px;text-align:center">No se pudo cargar el calendario. Los turnos están en la solapa Turnos.</div>'; }
 }
 
 function estadoChip(e){
